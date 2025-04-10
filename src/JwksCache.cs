@@ -1,23 +1,15 @@
-using System.Collections.Concurrent;
-
+using Microsoft.Extensions.Caching.Memory;
 using Microsoft.IdentityModel.Tokens;
 
 namespace Wristband.AspNet.Auth.Jwt;
 
 /// <summary>
-/// LRU cache for JSON Web Keys that stores keys up to a maximum size limit
-/// and optionally expires them after a configured TTL.
+/// Cache for JSON Web Keys using the built-in MemoryCache with LRU eviction.
 /// </summary>
 internal class JwksCache
 {
-    private const int DefaultCacheSize = 3;
-    private const int MaxCacheSize = 20;
-
-    private readonly ConcurrentDictionary<string, JwksCacheEntry> _keyCache = new();
-    private readonly LinkedList<string> _accessOrder = new();
-    private readonly Dictionary<string, LinkedListNode<string>> _accessOrderNodes = new();
-    private readonly ReaderWriterLockSlim _lock = new();
-    private readonly int _maxSize;
+    private const int DefaultMaxCacheSize = 20;
+    private readonly MemoryCache _cache;
     private readonly TimeSpan? _ttl;
 
     /// <summary>
@@ -27,9 +19,11 @@ internal class JwksCache
     /// <param name="ttl">Optional TTL for cache entries. If null, entries never expire.</param>
     public JwksCache(int? maxSize, TimeSpan? ttl)
     {
-        _maxSize = maxSize.HasValue && maxSize.Value > 0 && maxSize.Value <= MaxCacheSize
-            ? maxSize.Value
-            : DefaultCacheSize;
+        var size = maxSize.HasValue && maxSize.Value > 0 ? maxSize.Value : DefaultMaxCacheSize;
+        _cache = new MemoryCache(new MemoryCacheOptions
+        {
+            SizeLimit = size,
+        });
         _ttl = ttl;
     }
 
@@ -41,60 +35,10 @@ internal class JwksCache
     /// <returns>True if the key was found, false otherwise.</returns>
     public bool TryGetKey(string kid, out SecurityKey key)
     {
-        if (_keyCache.TryGetValue(kid, out var entry))
+        if (_cache.TryGetValue(kid, out SecurityKey? cachedKey) && cachedKey != null)
         {
-            // Check if entry is expired
-            if (_ttl.HasValue && (DateTime.UtcNow - entry.LastAccessed) > _ttl.Value)
-            {
-                // Need to remove the expired entry
-                _lock.EnterWriteLock();
-                try
-                {
-                    // Check again inside the lock to avoid race conditions
-                    if (_keyCache.TryGetValue(kid, out entry) &&
-                        _ttl.HasValue && (DateTime.UtcNow - entry.LastAccessed) > _ttl.Value)
-                    {
-                        _keyCache.TryRemove(kid, out _);
-                        RemoveFromAccessOrder(kid);
-                    }
-                }
-                finally
-                {
-                    _lock.ExitWriteLock();
-                }
-
-                key = null!;
-                return false;
-            }
-
-            // Update access time and order - Need write lock for this
-            _lock.EnterWriteLock();
-            try
-            {
-                // Get the latest entry again inside the lock
-                if (_keyCache.TryGetValue(kid, out entry))
-                {
-                    // Update the LastAccessed time
-                    entry.LastAccessed = DateTime.UtcNow;
-                    _keyCache[kid] = entry;
-
-                    // Update access order
-                    if (_accessOrderNodes.TryGetValue(kid, out var node))
-                    {
-                        _accessOrder.Remove(node);
-                    }
-
-                    var newNode = _accessOrder.AddLast(kid);
-                    _accessOrderNodes[kid] = newNode;
-
-                    key = entry.Key;
-                    return true;
-                }
-            }
-            finally
-            {
-                _lock.ExitWriteLock();
-            }
+            key = cachedKey;
+            return true;
         }
 
         key = null!;
@@ -102,64 +46,23 @@ internal class JwksCache
     }
 
     /// <summary>
-    /// Adds or updates a key in the cache, potentially evicting the least recently used key
-    /// if the cache is at its maximum size.
+    /// Adds or updates a key in the cache.
     /// </summary>
     /// <param name="kid">The key ID.</param>
     /// <param name="key">The security key to cache.</param>
     public void AddOrUpdate(string kid, SecurityKey key)
     {
-        var entry = new JwksCacheEntry { Key = key, LastAccessed = DateTime.UtcNow };
-
-        _lock.EnterWriteLock();
-        try
+        // Each key counts as 1 toward the size limit
+        var options = new MemoryCacheEntryOptions
         {
-            // Add or update the key
-            _keyCache[kid] = entry;
+            Size = 1,
+        };
 
-            // Update access order
-            if (_accessOrderNodes.TryGetValue(kid, out var existingNode))
-            {
-                _accessOrder.Remove(existingNode);
-            }
-
-            var node = _accessOrder.AddLast(kid);
-            _accessOrderNodes[kid] = node;
-
-            // Evict least recently used if over max size
-            while (_keyCache.Count > _maxSize && _accessOrder.Count > 0)
-            {
-                var oldestNode = _accessOrder.First;
-                if (oldestNode != null)
-                {
-                    var oldestKid = oldestNode.Value;
-                    _accessOrder.RemoveFirst();
-                    _accessOrderNodes.Remove(oldestKid);
-                    _keyCache.TryRemove(oldestKid, out _);
-                }
-            }
-        }
-        finally
+        if (_ttl.HasValue)
         {
-            _lock.ExitWriteLock();
+            options.SlidingExpiration = _ttl.Value;
         }
-    }
 
-    // Add this helper method
-    private void RemoveFromAccessOrder(string kid)
-    {
-        _lock.EnterWriteLock();
-        try
-        {
-            if (_accessOrderNodes.TryGetValue(kid, out var node))
-            {
-                _accessOrder.Remove(node);
-                _accessOrderNodes.Remove(kid);
-            }
-        }
-        finally
-        {
-            _lock.ExitWriteLock();
-        }
+        _cache.Set(kid, key, options);
     }
 }
