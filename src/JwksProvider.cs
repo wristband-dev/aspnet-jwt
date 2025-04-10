@@ -61,13 +61,19 @@ internal class JwksProvider
             ValidAlgorithms = new[] { "RS256" },
             IssuerSigningKeyResolver = (token, securityToken, kid, validationParameters) =>
             {
-                // Try to get the key from cache first
-                if (!string.IsNullOrEmpty(kid) && _jwksCache.TryGetKey(kid, out var cachedKey))
+                // Handle case where no kid is provided in the token.
+                if (string.IsNullOrEmpty(kid))
+                {
+                    throw new SecurityTokenSignatureKeyNotFoundException("No key ID (kid) found in the token");
+                }
+
+                // Try to get the key from cache first.
+                if (_jwksCache.TryGetKey(kid, out var cachedKey))
                 {
                     return new[] { cachedKey };
                 }
 
-                // If not in cache or no kid, get the full JWKS
+                // If not in cache, get the full JWKS.
                 try
                 {
                     var jwks = _keySetRetriever.GetConfigurationAsync(
@@ -75,44 +81,25 @@ internal class JwksProvider
                         _documentRetriever,
                         CancellationToken.None).GetAwaiter().GetResult();
 
-                    // Cache all keys
-                    foreach (var key in jwks.Keys)
+                    // Look for the key matching the kid
+                    var matchingKey = jwks.Keys.FirstOrDefault(k => k.Kid == kid);
+                    if (matchingKey != null)
                     {
-                        if (!string.IsNullOrEmpty(key.Kid))
-                        {
-                            _jwksCache.AddOrUpdate(key.Kid, key);
-                        }
+                        // Only cache the matching key
+                        _jwksCache.AddOrUpdate(kid, matchingKey);
+                        return new[] { matchingKey };
                     }
-
-                    // Return the key for the specific kid if provided
-                    if (!string.IsNullOrEmpty(kid))
-                    {
-                        var key = jwks.Keys.FirstOrDefault(k => k.Kid == kid);
-                        if (key != null)
-                        {
-                            return new[] { key };
-                        }
-                    }
-
-                    // Otherwise return all keys
-                    return jwks.Keys;
                 }
                 catch (Exception ex)
                 {
-                    // If we can't get the JWKS, try using cached keys as fallback
-                    if (!string.IsNullOrEmpty(kid))
-                    {
-                        if (_jwksCache.TryGetKey(kid, out cachedKey))
-                        {
-                            return new[] { cachedKey };
-                        }
-                    }
-
                     // If all else fails, throw the exception
                     throw new SecurityTokenSignatureKeyNotFoundException(
                         $"Unable to retrieve JWKS from {_jwksUri}: {ex.Message}",
                         ex);
                 }
+
+                // Throw if no matching key was found.
+                throw new SecurityTokenSignatureKeyNotFoundException($"No key found in JWKS matching kid: {kid}");
             },
         };
     }
