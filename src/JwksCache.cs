@@ -4,9 +4,9 @@ using Microsoft.IdentityModel.Tokens;
 namespace Wristband.AspNet.Auth.Jwt;
 
 /// <summary>
-/// Cache for JSON Web Keys using the built-in MemoryCache with LRU eviction.
+/// Cache for JSON Web Keys using the built-in MemoryCache.
 /// </summary>
-internal class JwksCache
+internal class JwksCache : IJwksCache
 {
     private const int DefaultMaxCacheSize = 20;
     private readonly MemoryCache _cache;

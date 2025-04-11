@@ -12,14 +12,14 @@ dotnet test --framework net9.0
 
 ```dotnetcli
 // Replace with desired file name you want to test
-dotnet test --framework net9.0 --filter FullyQualifiedName~Wristband.AspNet.Auth.Jwt.Tests.LogoutConfigTests
+dotnet test --framework net9.0 --filter FullyQualifiedName~Wristband.AspNet.Auth.Jwt.Tests.JwksProviderTests
 ```
 
 ### Run a Single Test from a Single Test File
 
 ```dotnetcli
 // Replace with desired file name and method name you want to test
-dotnet test --framework net9.0 --filter FullyQualifiedName~Wristband.AspNet.Auth.Jwt.Tests.LogoutConfigTests.Constructor_WithValidValues_SetsProperties
+dotnet test --framework net9.0 --filter FullyQualifiedName~Wristband.AspNet.Auth.Jwt.Tests.JwksProviderTests.Throws_When_Domain_Is_Missing
 ```
 
 ### Run Tests and Output Test Results

@@ -10,7 +10,7 @@
     <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="6.0.0" Condition="'$(TargetFramework)' == 'net6.0'" />
     <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="7.0.0" Condition="'$(TargetFramework)' == 'net7.0'" />
     <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="8.0.0" Condition="'$(TargetFramework)' == 'net8.0'" />
-    <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="9.0.0-preview.1.24081.5" Condition="'$(TargetFramework)' == 'net9.0'" />
+    <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="8.0.0" Condition="'$(TargetFramework)' == 'net9.0'" />
 
     <PackageReference Include="Microsoft.Extensions.Http" Version="6.0.0" Condition="'$(TargetFramework)' == 'net6.0'" />
     <PackageReference Include="Microsoft.Extensions.Http" Version="7.0.0" Condition="'$(TargetFramework)' == 'net7.0'" />
@@ -35,7 +35,7 @@
     <Copyright>Apitopia, Inc.</Copyright>
     <NeutralLanguage>en-US</NeutralLanguage>
     <Authors>Wristband</Authors>
-    <PackageTags>wristband;authentication;openid connect;oidc;oauth2;multi tenant;multi-tenant;b2b;m2m;machine-to-machine;jwt</PackageTags>
+    <PackageTags>wristband;authentication;openid connect;oidc;oauth2;multi tenant;multi-tenant;b2b;m2m;machine-to-machine;jwt;token</PackageTags>
     <PackageIcon>WristbandIcon.png</PackageIcon>
     <PackageProjectUrl>https://github.com/wristband-dev/aspnet-jwt</PackageProjectUrl>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>

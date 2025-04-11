@@ -8,25 +8,28 @@ namespace Wristband.AspNet.Auth.Jwt;
 /// from your Wristband application's domain. It provides the necessary token validation parameters and event handling
 /// to validate JWTs issued by Wristband. The JWKS is used to resolve signing keys for token validation.
 /// </summary>
-internal class JwksProvider
+internal class JwksProvider : IJwksProvider
 {
     private const string JwksApiPath = "/api/v1/oauth2/jwks";
 
     private readonly string _jwksUri;
     private readonly string _issuerDomain;
     private readonly JsonWebKeySetRetriever _keySetRetriever;
-    private readonly HttpDocumentRetriever _documentRetriever;
-    private readonly JwksCache _jwksCache;
+    private readonly IDocumentRetriever _documentRetriever;
+    private readonly IJwksCache _jwksCache;
 
     /// <summary>
-    /// Initializes a new instance of the <see cref="JwksProvider"/> class. Configures the JWKS provider by setting the
-    /// issuer domain and initializing the JWKS configuration manager to handle key retrieval and caching.
+    /// Initializes a new instance of the <see cref="JwksProvider"/> class with configurable dependencies for testing and customization.
     /// </summary>
-    /// <param name="options">
-    /// The <see cref="WristbandJwtValidationOptions"/> used to configure the JWKS provider, including the application
-    /// domain for the issuer and the JWKS URI.
-    /// </param>
-    internal JwksProvider(WristbandJwtValidationOptions options)
+    /// <param name="options">Options containing the Wristband domain and JWKS cache settings.</param>
+    /// <param name="documentRetriever">Optional document retriever for fetching the JWKS endpoint.</param>
+    /// <param name="keySetRetriever">Optional key set retriever for parsing the JWKS response.</param>
+    /// <param name="jwksCache">Optional cache for storing individual keys by 'kid'.</param>
+    public JwksProvider(
+        WristbandJwtValidationOptions options,
+        IDocumentRetriever? documentRetriever = null,
+        JsonWebKeySetRetriever? keySetRetriever = null,
+        IJwksCache? jwksCache = null)
     {
         if (string.IsNullOrEmpty(options.WristbandApplicationDomain))
         {
@@ -35,20 +38,17 @@ internal class JwksProvider
 
         _issuerDomain = $"https://{options.WristbandApplicationDomain}";
         _jwksUri = $"{_issuerDomain}{JwksApiPath}";
-        _keySetRetriever = new JsonWebKeySetRetriever();
-        _documentRetriever = new HttpDocumentRetriever { RequireHttps = true };
-        _jwksCache = new JwksCache(options.JwksCacheMaxSize, options.JwksCacheTtl);
+        _documentRetriever = documentRetriever ?? new HttpDocumentRetriever { RequireHttps = true };
+        _keySetRetriever = keySetRetriever ?? new JsonWebKeySetRetriever();
+        _jwksCache = jwksCache ?? new JwksCache(options.JwksCacheMaxSize, options.JwksCacheTtl);
     }
 
     /// <summary>
-    /// Generates <see cref="TokenValidationParameters"/> based on the JWKS configuration used to validate the JWT
-    /// token during authentication.
+    /// Constructs <see cref="TokenValidationParameters"/> that can be used to validate JWTs from Wristband.
+    /// Configures issuer, algorithm, and signing key resolution logic including key caching.
     /// </summary>
-    /// <returns>
-    /// Returns <see cref="TokenValidationParameters"/> with settings such as issuer validation, algorithm, and signing
-    /// key resolver.
-    /// </returns>
-    internal TokenValidationParameters GetTokenValidationParameters()
+    /// <returns>A configured <see cref="TokenValidationParameters"/> instance.</returns>
+    public TokenValidationParameters GetTokenValidationParameters()
     {
         return new TokenValidationParameters
         {
@@ -61,19 +61,16 @@ internal class JwksProvider
             ValidAlgorithms = new[] { "RS256" },
             IssuerSigningKeyResolver = (token, securityToken, kid, validationParameters) =>
             {
-                // Handle case where no kid is provided in the token.
                 if (string.IsNullOrEmpty(kid))
                 {
                     throw new SecurityTokenSignatureKeyNotFoundException("No key ID (kid) found in the token");
                 }
 
-                // Try to get the key from cache first.
                 if (_jwksCache.TryGetKey(kid, out var cachedKey))
                 {
                     return new[] { cachedKey };
                 }
 
-                // If not in cache, get the full JWKS.
                 try
                 {
                     var jwks = _keySetRetriever.GetConfigurationAsync(
@@ -81,24 +78,20 @@ internal class JwksProvider
                         _documentRetriever,
                         CancellationToken.None).GetAwaiter().GetResult();
 
-                    // Look for the key matching the kid
                     var matchingKey = jwks.Keys.FirstOrDefault(k => k.Kid == kid);
                     if (matchingKey != null)
                     {
-                        // Only cache the matching key
                         _jwksCache.AddOrUpdate(kid, matchingKey);
                         return new[] { matchingKey };
                     }
                 }
                 catch (Exception ex)
                 {
-                    // If all else fails, throw the exception
                     throw new SecurityTokenSignatureKeyNotFoundException(
                         $"Unable to retrieve JWKS from {_jwksUri}: {ex.Message}",
                         ex);
                 }
 
-                // Throw if no matching key was found.
                 throw new SecurityTokenSignatureKeyNotFoundException($"No key found in JWKS matching kid: {kid}");
             },
         };

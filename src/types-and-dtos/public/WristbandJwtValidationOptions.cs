@@ -13,7 +13,7 @@ public class WristbandJwtValidationOptions
 
     /// <summary>
     /// Gets or sets the maximum number of JWK keys to cache. When this limit is reached, the least recently
-    /// used keys will be evicted from the cache. Default is 3.
+    /// used keys will be evicted from the cache. Default is 20.
     /// </summary>
     public int? JwksCacheMaxSize { get; set; }
 
