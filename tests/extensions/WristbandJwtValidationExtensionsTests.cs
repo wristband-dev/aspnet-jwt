@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Authorization.Infrastructure;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 
@@ -37,14 +38,25 @@ public class WristbandJwtValidationExtensionsTests
     public void AddWristbandJwtValidation_ConfiguresJwtBearerOptions()
     {
         var services = new ServiceCollection();
+
+        var configData = new Dictionary<string, string?>
+        {
+            { "JwtBearerOptions:ValidIssuer", "https://test.wristband.dev" },
+            { "JwtBearerOptions:IssuerSigningKey", "sample-signing-key" }
+        };
+
+        // Add in-memory configuration with required values
+        var config = new ConfigurationBuilder()
+            .AddInMemoryCollection(configData)
+            .Build();
+
+        services.AddSingleton<IConfiguration>(config);
         services.AddWristbandJwtValidation(options =>
         {
             options.WristbandApplicationDomain = "test.wristband.dev";
         });
 
         var provider = services.BuildServiceProvider();
-
-        // Get the options instances that were configured
         var optionsMonitor = provider.GetRequiredService<IOptionsMonitor<JwtBearerOptions>>();
         var jwtOptions = optionsMonitor.Get(JwtBearerDefaults.AuthenticationScheme);
 
@@ -138,17 +150,26 @@ public class WristbandJwtValidationExtensionsTests
     public void AddWristbandJwtValidation_ConfiguresCacheOptions()
     {
         var services = new ServiceCollection();
-        var maxCacheSize = 50;
-        var cacheTtl = TimeSpan.FromMinutes(30);
 
+        // Add in-memory configuration with cache options
+        var configData = new Dictionary<string, string?>
+        {
+            { "CacheOptions:JwksCacheMaxSize", "50" },
+            { "CacheOptions:JwksCacheTtl", "00:30:00" }
+        };
+
+        var config = new ConfigurationBuilder()
+            .AddInMemoryCollection(configData)
+            .Build();
+
+        services.AddSingleton<IConfiguration>(config);
         services.AddWristbandJwtValidation(options =>
         {
             options.WristbandApplicationDomain = "test.wristband.dev";
-            options.JwksCacheMaxSize = maxCacheSize;
-            options.JwksCacheTtl = cacheTtl;
+            options.JwksCacheMaxSize = 50;
+            options.JwksCacheTtl = TimeSpan.FromMinutes(30);
         });
 
-        // We can only verify the service was registered successfully
         var provider = services.BuildServiceProvider();
         var jwtOptions = provider.GetRequiredService<IOptionsMonitor<JwtBearerOptions>>();
         Assert.NotNull(jwtOptions);
