@@ -26,17 +26,17 @@ internal class JwksProvider : IJwksProvider
     /// <param name="keySetRetriever">Optional key set retriever for parsing the JWKS response.</param>
     /// <param name="jwksCache">Optional cache for storing individual keys by 'kid'.</param>
     public JwksProvider(
-        WristbandJwtValidationOptions options,
+        WristbandJwtValidatorConfig options,
         IDocumentRetriever? documentRetriever = null,
         JsonWebKeySetRetriever? keySetRetriever = null,
         IJwksCache? jwksCache = null)
     {
-        if (string.IsNullOrEmpty(options.WristbandApplicationDomain))
+        if (string.IsNullOrEmpty(options.WristbandApplicationVanityDomain))
         {
-            throw new ArgumentException("WristbandApplicationDomain must be set in options.", nameof(options));
+            throw new ArgumentException("WristbandApplicationVanityDomain must be set in options.", nameof(options));
         }
 
-        _issuerDomain = $"https://{options.WristbandApplicationDomain}";
+        _issuerDomain = $"https://{options.WristbandApplicationVanityDomain}";
         _jwksUri = $"{_issuerDomain}{JwksApiPath}";
         _documentRetriever = documentRetriever ?? new HttpDocumentRetriever { RequireHttps = true };
         _keySetRetriever = keySetRetriever ?? new JsonWebKeySetRetriever();
@@ -73,10 +73,9 @@ internal class JwksProvider : IJwksProvider
 
                 try
                 {
-                    var jwks = _keySetRetriever.GetConfigurationAsync(
-                        _jwksUri,
-                        _documentRetriever,
-                        CancellationToken.None).GetAwaiter().GetResult();
+                    var jwks = _keySetRetriever.GetConfigurationAsync(_jwksUri, _documentRetriever, CancellationToken.None)
+                        .GetAwaiter()
+                        .GetResult();
 
                     var matchingKey = jwks.Keys.FirstOrDefault(k => k.Kid == kid);
                     if (matchingKey != null)

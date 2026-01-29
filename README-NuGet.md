@@ -11,7 +11,7 @@ For detailed setup instructions and usage guidelines, visit the project's GitHub
 
 ## Details
 
-This ASP.NET Core SDK validates JWT access tokens issued by Wristband for user or machine authentication. It uses the Wristband JWKS endpoint to resolve signing keys and verify RS256 signatures. Validation includes issuer verification, lifetime checks, and signature validation using cached keys. Supported on .NET 6 or later.
+This ASP.NET Core SDK validates JWT access tokens issued by Wristband for user or machine authentication. It uses the Wristband JWKS endpoint to resolve signing keys and verify RS256 signatures. Validation includes issuer verification, lifetime checks, and signature validation using cached keys. Supported on .NET 8 or later.
 
 The SDK integrates with ASP.NET Core's built-in authentication and authorization system. Once configured, it enables authorization policies to be enforced at the endpoint level using `RequireAuthorization`. This allows developers to declaratively protect routes and ensure that only valid, Wristband-issued access tokens can access secured APIs.
 

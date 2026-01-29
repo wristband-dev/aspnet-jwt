@@ -3,13 +3,13 @@ namespace Wristband.AspNet.Auth.Jwt;
 /// <summary>
 /// Provides configuration options for Wristband JWT validation.
 /// </summary>
-public class WristbandJwtValidationOptions
+public class WristbandJwtValidatorConfig
 {
     /// <summary>
     /// Gets or sets the Wristband application domain. This value is used to construct the
     /// JWKS endpoint URL for token validation. Example: "myapp.wristband.dev".
     /// </summary>
-    public string? WristbandApplicationDomain { get; set; }
+    public string? WristbandApplicationVanityDomain { get; set; }
 
     /// <summary>
     /// Gets or sets the maximum number of JWK keys to cache. When this limit is reached, the least recently
