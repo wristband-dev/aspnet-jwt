@@ -1,32 +1,32 @@
 namespace Wristband.AspNet.Auth.Jwt.Tests;
 
-public class WristbandJwtValidationOptionsTests
+public class WristbandJwtValidatorConfigTests
 {
     [Fact]
-    public void WristbandJwtValidationOptions_DefaultConstructor_InitializesWithDefaultValues()
+    public void WristbandJwtValidatorConfig_DefaultConstructor_InitializesWithDefaultValues()
     {
-        var options = new WristbandJwtValidationOptions();
+        var options = new WristbandJwtValidatorConfig();
 
-        Assert.Null(options.WristbandApplicationDomain);
+        Assert.Null(options.WristbandApplicationVanityDomain);
         Assert.Null(options.JwksCacheMaxSize);
         Assert.Null(options.JwksCacheTtl);
     }
 
     [Fact]
-    public void WristbandApplicationDomain_CanBeSetAndRetrieved()
+    public void WristbandApplicationVanityDomain_CanBeSetAndRetrieved()
     {
-        var options = new WristbandJwtValidationOptions();
+        var options = new WristbandJwtValidatorConfig();
         var domain = "test.wristband.dev";
 
-        options.WristbandApplicationDomain = domain;
+        options.WristbandApplicationVanityDomain = domain;
 
-        Assert.Equal(domain, options.WristbandApplicationDomain);
+        Assert.Equal(domain, options.WristbandApplicationVanityDomain);
     }
 
     [Fact]
     public void JwksCacheMaxSize_CanBeSetAndRetrieved()
     {
-        var options = new WristbandJwtValidationOptions();
+        var options = new WristbandJwtValidatorConfig();
         var maxSize = 10;
 
         options.JwksCacheMaxSize = maxSize;
@@ -37,7 +37,7 @@ public class WristbandJwtValidationOptionsTests
     [Fact]
     public void JwksCacheTtl_CanBeSetAndRetrieved()
     {
-        var options = new WristbandJwtValidationOptions();
+        var options = new WristbandJwtValidatorConfig();
         var ttl = TimeSpan.FromMinutes(15);
 
         options.JwksCacheTtl = ttl;
@@ -52,14 +52,14 @@ public class WristbandJwtValidationOptionsTests
         var maxSize = 10;
         var ttl = TimeSpan.FromMinutes(15);
 
-        var options = new WristbandJwtValidationOptions
+        var options = new WristbandJwtValidatorConfig
         {
-            WristbandApplicationDomain = domain,
+            WristbandApplicationVanityDomain = domain,
             JwksCacheMaxSize = maxSize,
             JwksCacheTtl = ttl
         };
 
-        Assert.Equal(domain, options.WristbandApplicationDomain);
+        Assert.Equal(domain, options.WristbandApplicationVanityDomain);
         Assert.Equal(maxSize, options.JwksCacheMaxSize);
         Assert.Equal(ttl, options.JwksCacheTtl);
     }

@@ -14,7 +14,7 @@ public class JwksProviderTests
     private const string Kid = "test-kid";
     private const string FakeKeyJson = "{\"keys\":[{\"kty\":\"RSA\",\"kid\":\"test-kid\",\"n\":\"AQAB\",\"e\":\"AQAB\",\"use\":\"sig\",\"alg\":\"RS256\"}]}";
 
-    private WristbandJwtValidationOptions Options => new() { WristbandApplicationDomain = Domain };
+    private WristbandJwtValidatorConfig Options => new() { WristbandApplicationVanityDomain = Domain };
 
     private JwksProvider CreateProviderWithInjectedDependencies(
         out Mock<IJwksCache> mockCache,
@@ -40,7 +40,7 @@ public class JwksProviderTests
     [Fact]
     public void Throws_When_Domain_Is_Missing()
     {
-        var options = new WristbandJwtValidationOptions();
+        var options = new WristbandJwtValidatorConfig();
         Assert.Throws<ArgumentException>(() => new JwksProvider(options));
     }
 
