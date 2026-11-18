@@ -55,6 +55,7 @@ public class JwksProviderTests
         Assert.Contains("RS256", parameters.ValidAlgorithms);
         Assert.True(parameters.ValidateIssuerSigningKey);
         Assert.NotNull(parameters.IssuerSigningKeyResolver);
+        Assert.Equal(TimeSpan.Zero, parameters.ClockSkew);
     }
 
     [Fact]
@@ -124,6 +125,57 @@ public class JwksProviderTests
             parameters.IssuerSigningKeyResolver("token", null, Kid, parameters));
 
         Assert.Contains("No key found", ex.Message);
+    }
+
+    [Fact]
+    public void Resolver_Retries_Failed_Jwks_Fetch_And_Returns_Key()
+    {
+        var provider = CreateProviderWithInjectedDependencies(out var mockCache, out var mockRetriever);
+        mockCache.Setup(x => x.TryGetKey(Kid, out It.Ref<SecurityKey>.IsAny)).Returns(false);
+        mockRetriever.SetupSequence(r => r.GetDocumentAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new Exception("network error"))
+            .ThrowsAsync(new Exception("network error"))
+            .ReturnsAsync(FakeKeyJson);
+
+        var parameters = provider.GetTokenValidationParameters();
+        var keys = parameters.IssuerSigningKeyResolver("token", null, Kid, parameters);
+
+        Assert.Single(keys);
+        mockRetriever.Verify(r => r.GetDocumentAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Exactly(3));
+    }
+
+    [Fact]
+    public void Resolver_Stops_After_Three_Failed_Jwks_Fetches()
+    {
+        var provider = CreateProviderWithInjectedDependencies(out var mockCache, out var mockRetriever);
+        mockCache.Setup(x => x.TryGetKey(Kid, out It.Ref<SecurityKey>.IsAny)).Returns(false);
+        mockRetriever.Setup(r => r.GetDocumentAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new Exception("network error"));
+
+        var parameters = provider.GetTokenValidationParameters();
+        var stopwatch = System.Diagnostics.Stopwatch.StartNew();
+
+        Assert.Throws<SecurityTokenSignatureKeyNotFoundException>(() =>
+            parameters.IssuerSigningKeyResolver("token", null, Kid, parameters));
+
+        mockRetriever.Verify(r => r.GetDocumentAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Exactly(3));
+        Assert.True(stopwatch.ElapsedMilliseconds >= 190, "Expected about 100ms between each of the 3 attempts");
+    }
+
+    // A successful fetch without a matching key isn't a transient failure, so it isn't retried.
+    [Fact]
+    public void Resolver_Does_Not_Retry_When_Kid_Is_Not_In_Jwks()
+    {
+        var provider = CreateProviderWithInjectedDependencies(out var mockCache, out var mockRetriever);
+        mockCache.Setup(x => x.TryGetKey("other-kid", out It.Ref<SecurityKey>.IsAny)).Returns(false);
+        mockRetriever.Setup(r => r.GetDocumentAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(FakeKeyJson);
+
+        var parameters = provider.GetTokenValidationParameters();
+
+        Assert.Throws<SecurityTokenSignatureKeyNotFoundException>(() =>
+            parameters.IssuerSigningKeyResolver("token", null, "other-kid", parameters));
+        mockRetriever.Verify(r => r.GetDocumentAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Once);
     }
 
     [Fact]

@@ -11,6 +11,8 @@ namespace Wristband.AspNet.Auth.Jwt;
 internal class JwksProvider : IJwksProvider
 {
     private const string JwksApiPath = "/api/v1/oauth2/jwks";
+    private const int MaxJwksFetchAttempts = 3;
+    private static readonly TimeSpan JwksFetchRetryDelay = TimeSpan.FromMilliseconds(100);
 
     private readonly string _jwksUri;
     private readonly string _issuerDomain;
@@ -56,7 +58,7 @@ internal class JwksProvider : IJwksProvider
             ValidIssuer = _issuerDomain,
             ValidateAudience = false,
             ValidateLifetime = true,
-            ClockSkew = TimeSpan.FromMinutes(5),
+            ClockSkew = TimeSpan.Zero,
             ValidateIssuerSigningKey = true,
             ValidAlgorithms = new[] { "RS256" },
             IssuerSigningKeyResolver = (token, securityToken, kid, validationParameters) =>
@@ -71,28 +73,48 @@ internal class JwksProvider : IJwksProvider
                     return new[] { cachedKey };
                 }
 
-                try
+                var jwks = FetchJwksWithRetry();
+                var matchingKey = jwks.Keys.FirstOrDefault(k => k.Kid == kid);
+                if (matchingKey != null)
                 {
-                    var jwks = _keySetRetriever.GetConfigurationAsync(_jwksUri, _documentRetriever, CancellationToken.None)
-                        .GetAwaiter()
-                        .GetResult();
-
-                    var matchingKey = jwks.Keys.FirstOrDefault(k => k.Kid == kid);
-                    if (matchingKey != null)
-                    {
-                        _jwksCache.AddOrUpdate(kid, matchingKey);
-                        return new[] { matchingKey };
-                    }
-                }
-                catch (Exception ex)
-                {
-                    throw new SecurityTokenSignatureKeyNotFoundException(
-                        $"Unable to retrieve JWKS from {_jwksUri}: {ex.Message}",
-                        ex);
+                    _jwksCache.AddOrUpdate(kid, matchingKey);
+                    return new[] { matchingKey };
                 }
 
                 throw new SecurityTokenSignatureKeyNotFoundException($"No key found in JWKS matching kid: {kid}");
             },
         };
+    }
+
+    /// <summary>
+    /// Fetches the JWKS, trying up to 3 times with 100ms between attempts so that a brief network failure doesn't
+    /// reject a valid token.
+    /// </summary>
+    /// <returns>The JSON Web Key Set.</returns>
+    /// <exception cref="SecurityTokenSignatureKeyNotFoundException">Thrown when every attempt fails.</exception>
+    private JsonWebKeySet FetchJwksWithRetry()
+    {
+        for (var attempt = 1; ; attempt++)
+        {
+            try
+            {
+                return _keySetRetriever.GetConfigurationAsync(_jwksUri, _documentRetriever, CancellationToken.None)
+                    .GetAwaiter()
+                    .GetResult();
+            }
+            catch (Exception ex)
+            {
+                if (attempt < MaxJwksFetchAttempts)
+                {
+                    // The signing key resolver is synchronous, so this blocks instead of awaiting.
+                    Thread.Sleep(JwksFetchRetryDelay);
+                    continue;
+                }
+
+                throw new SecurityTokenSignatureKeyNotFoundException(
+                    $"Unable to retrieve JWKS from {_jwksUri}: {ex.Message}",
+                    ex);
+            }
+        }
     }
 }

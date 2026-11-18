@@ -28,7 +28,7 @@
 [![Actions Status](https://github.com/wristband-dev/aspnet-jwt/workflows/Test/badge.svg)](https://github.com/wristband-dev/aspnet-jwt/actions)
 [![License](https://img.shields.io/github/license/wristband-dev/aspnet-jwt)](https://github.com/wristband-dev/aspnet-jwt/blob/main/LICENSE)
 
-This ASP.NET Core SDK validates JWT access tokens issued by Wristband for user or machine authentication. It uses the Wristband JWKS endpoint to resolve signing keys and verify RS256 signatures. Validation includes issuer verification, lifetime checks, and signature validation using cached keys.
+This ASP.NET Core SDK validates JWT access tokens issued by Wristband for user or machine authentication. It uses the Wristband JWKS endpoint to resolve signing keys and verify RS256 signatures. Validation includes issuer verification, lifetime checks with no clock skew (tokens are rejected as soon as they expire), and signature validation using cached keys.
 
 The SDK provides two integration options:
 - **Middleware Integration:** Integrates with ASP.NET Core's authentication pipeline for declarative endpoint protection at the route or route group level using the `RequireWristbandJwt()` extension method.
@@ -369,6 +369,8 @@ public class UserService
 ## JWKS Caching and Expiration
 
 The SDK automatically retrieves and caches JSON Web Key Sets (JWKS) from your Wristband application's domain to validate incoming access tokens. By default, keys are cached in memory and reused across requests to avoid unnecessary network calls.
+
+When the JWKS has to be fetched, a failed request is retried up to 2 more times, with 100ms between attempts, so that a brief network failure doesn't reject a valid token.
 
 You can control how the SDK handles this caching behavior using two optional configuration values: `JwksCacheMaxSize` and `JwksCacheTtl`.
 
